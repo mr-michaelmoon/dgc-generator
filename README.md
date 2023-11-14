@@ -1,15 +1,14 @@
-# Covid1984 Green Pass Generator
+# Digital Green Certificate Generator
 
 Just for fun. No fraud intended
 
 ### Important note
 
-I thought the following would be obvious to everyone, but considering the amount of people who reached out to me privately, apparently it's not.
+I also got no valid signature (private key). All of which has been randomly generated.
 
-I posted this code just for education purposes, it can create plausible Green Pass QRs in a (mostly) correct format which are parsed correctly by the checker apps (at least the ones I tried) but obviously **no one but who has one of the "authorized" key pairs** will ever be able to generate valid signatures.
+### Fork reason
 
-It's cryptography, there's no magic trick. You can see also in the example image that the signature verification fails.
-
-![Green Pass QR](res/qr.png "Green Pass QR")
-![Your Government](res/thegovt.png "Your Government")
-
+I have included the cbor tag "18", which is present in real covid certificates and I replace the cose encryption with these classes:
+cose.algorithm.Es256
+cose.keys.EC2key
+cose.keys.curves.P256
