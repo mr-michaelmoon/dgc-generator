@@ -1,79 +1,143 @@
-#!/usr/bin/env python3
-"""
-Covid1984 Green Pass Generator
-"""
-
 from zlib import compress
 from binascii import unhexlify
+from cbor2 import dumps, CBORTag
 
 from base45 import b45encode
-from flynn import encoder as flynn_encoder
 from flynn import decoder as flynn_decoder
 import qrcode
 from cose.messages import Sign1Message
 from cose.headers import Algorithm, KID
-from cose.algorithms import EdDSA
-from cose.keys.curves import Ed25519
-from cose.keys import OKPKey
+from cose.algorithms import Es256
+from cose.keys.curves import P256
+from cose.keys import EC2Key
 
-DATA = {
-    1: "DE",
-    -260: {
-        1: {
-            "v": [
-                {
-                    "dn": 2,
-                    "sd": float("inf"),
-                    "ma": "ORG-100030215",
-                    "vp": "1119349007",
-                    "dt": "2021-06-11",
-                    "co": "DE",
-                    "ci": "420_69",
-                    "mp": "EU/1/20/1528",
-                    "is": "Reichsministerium für Volksaufklärung und Propaganda",
-                    "tg": "840539006"
-                }
-            ],
-            "nam": {
-                "fnt": "Goebbels",
-                "fn": "Goebbels",
-                "gnt": "Paul Joseph",
-                "gn": "Paul Joseph"
-            },
-            "ver": "1.0.0",
-            "dob": "1897-10-29"
-        }
-    }
+VACC = {
+	4: 1699747200,
+	6: 1641027676,
+	1: "IT",
+	-260: {
+		1: {
+			"v": [{
+				"dn": 3,
+				"ma": "ORG-100030215",
+				"vp": "1119349007",
+				"dt": "2021-12-31",
+				"co": "IT",
+				"ci": "01IT805CEF3BD42E45EF9E270C5A16924986#0",
+				"mp": "EU/1/20/1528",
+				"is": "Ministero della Salute",
+				"sd": 3,
+				"tg": "840539006"
+			}],
+			"nam": {
+				"fnt": "SURNAME",
+				"fn": "Surname",
+				"gnt": "NAME",
+				"gn": "Name"
+			},
+			"ver": "1.3.0",
+			"dob": "1800-01-01"
+		}
+	}
 }
 
-# just 32 random bytes generated with `openssl rand -hex 32`
-PRIVKEY = b"9d370d925476752486ab0e4a8e088228e493da12d1586fafae9f35880dbcfe03"
+TEST = {
+	4: 1699747200,
+	6: 1642066979,
+	1: "IT",
+	-260: {
+		1: {
+			"t": [{
+				"sc": "2022-01-13T10:33:00+01:00",
+				"ma": "1363",
+				"tt": "LP217198-3",
+				"co": "IT",
+				"tc": "RAPID",
+				"ci": "01IT1033EEA681CC4795A0DFC653C3FE0677#1",
+				"is": "Ministero della Salute",
+				"tg": "840539006",
+				"tr": "260415000"
+			}],
+			"nam": {
+				"fnt": "SURNAME",
+				"fn": "Surname",
+				"gnt": "NAME",
+				"gn": "Name"
+			},
+			"ver": "1.3.0",
+			"dob": "1800-01-01"
+		}
+	}
+}
 
-# using an already signed header from a real certificate adds info on the issuer in the checker apps
-HEADER = b""
+RECV = {
+	4: 1699747200,
+	6: 1644481211,
+	1: "IT",
+	-260: {
+		1: {
+			"r": [{
+				"du": "2022-07-26",
+				"co": "IT",
+				"ci": "01IT3BB15EFA4A034FF0874B3DEFB6041ECA#5",
+				"is": "Ministero della Salute",
+				"tg": "840539006",
+				"df": "2022-02-07",
+				"fr": "2022-01-27"
+			}],
+			"nam": {
+				"fnt": "SURNAME",
+				"fn": "Surname",
+				"gnt": "NAME",
+				"gn": "Name"
+			},
+			"ver": "1.3.0",
+			"dob": "1800-01-01"
+		}
+	}
+}
+
+PRIVKEY = b"304502205D36C37AC5675CC8603280927F36F0D29016AAFEE85D423199C84A57"
+
+HEADER = ""
 
 def main():
-    msg = Sign1Message(phdr={Algorithm: EdDSA, KID: b"kid2"},
-                       payload=flynn_encoder.dumps(DATA))
 
-    privkey = unhexlify(PRIVKEY)
-    cose_key = OKPKey(crv=Ed25519, d=privkey, optional_params={"ALG": "EDDSA"})
+	CBOR = dumps(RECV)
 
-    msg.key = cose_key
+	msg = Sign1Message(phdr={Algorithm: Es256, KID: b"ceb332b481f8d119"}, payload=CBOR)
 
-    signed_encoded = msg.encode()
+	private_key = unhexlify(PRIVKEY)
+	cose_key = EC2Key(crv=P256, d=private_key, optional_params={"ALG": "ES256"})
 
-    (_, (header_1, header_2, cbor_payload, sign)) = flynn_decoder.loads(signed_encoded)
+	msg.key = cose_key
 
-    if HEADER:
-        header_1 = HEADER
+	signed_encoded = msg.encode()
 
-    signed_encoded = flynn_encoder.dumps((header_1, header_2, cbor_payload, sign))
+	(cbor_tag, (header_1, header_2, cbor_payload, sign)) = flynn_decoder.loads(signed_encoded)
 
-    qr_encoded = qrcode.make(b"HC1:" + b45encode(compress(signed_encoded)))
+	if HEADER:
+		header_1 = HEADER
 
-    qr_encoded.save("./qr.png")
+	COSE = dumps(CBORTag(cbor_tag, (header_1, header_2, cbor_payload, sign)))
 
+	ZLIB = compress(COSE)
+
+	BASE45 = b45encode(ZLIB)
+	
+	b = str(BASE45)
+	BASE45 = str()
+	for e in b:
+		if e == '\'' or e == 'b':
+			pass
+		else:
+			BASE45 += e
+
+	PREFIX = str("HC1:" + BASE45)
+
+	qr_encoded = qrcode.make(b"HC1:" + b45encode(ZLIB))
+	qr_encoded.save("./fake_r.png")
+	print(PREFIX)
 
 if __name__ == "__main__":
-    main()
+	main()
